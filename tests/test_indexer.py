@@ -39,3 +39,60 @@ def test_chunk_preserves_line_numbers(tmp_path):
     assert chunks[0]["start_line"] == 1
     for c in chunks:
         assert c["start_line"] <= c["end_line"]
+
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_index_project(tmp_path, tmp_data_dir, monkeypatch):
+    import respx, httpx, importlib
+    import config, db, embedder, chroma_client, indexer
+    monkeypatch.delenv("OLLAMA_URL", raising=False)
+    importlib.reload(config)
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    importlib.reload(db)
+    importlib.reload(embedder)
+    importlib.reload(chroma_client)
+    importlib.reload(indexer)
+
+    proj = tmp_path / "myproject"
+    proj.mkdir()
+    (proj / "foo.py").write_text("def hello():\n    return 'hi'\n")
+
+    with respx.mock:
+        respx.post("http://localhost:11434/api/embeddings").mock(
+            return_value=httpx.Response(200, json={"embedding": [0.1] * 768})
+        )
+        from indexer import index_project
+        count = await index_project(str(proj))
+
+    assert count >= 1
+
+
+@pytest.mark.asyncio
+async def test_clear_project_index(tmp_path, tmp_data_dir, monkeypatch):
+    import respx, httpx, importlib
+    import config, db, embedder, chroma_client, indexer
+    monkeypatch.delenv("OLLAMA_URL", raising=False)
+    importlib.reload(config)
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    importlib.reload(db)
+    importlib.reload(embedder)
+    importlib.reload(chroma_client)
+    importlib.reload(indexer)
+
+    proj = tmp_path / "myproject2"
+    proj.mkdir()
+    (proj / "bar.py").write_text("def bar():\n    pass\n")
+
+    with respx.mock:
+        respx.post("http://localhost:11434/api/embeddings").mock(
+            return_value=httpx.Response(200, json={"embedding": [0.1] * 768})
+        )
+        from indexer import index_project, clear_project_index
+        await index_project(str(proj))
+        clear_project_index(str(proj))
+
+    col = chroma_client.get_collection("code", str(proj))
+    assert col.count() == 0

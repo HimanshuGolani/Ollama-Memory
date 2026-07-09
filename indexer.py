@@ -1,5 +1,11 @@
+import asyncio
 import re
+from datetime import datetime, timezone
 from pathlib import Path
+
+from chroma_client import get_collection
+from db import get_db, get_or_create_project, init_db
+from embedder import embed
 
 LANGUAGE_PATTERNS: dict[str, str] = {
     ".py":   r"^(def |class |\s{0,4}def |\s{0,4}class )",
@@ -133,3 +139,89 @@ def _merge_tiny(chunks: list[dict], min_chars: int = 50) -> list[dict]:
             # Either no previous chunk or it's large enough: add as new chunk
             merged.append(chunk)
     return merged
+
+
+# ---------------------------------------------------------------------------
+# Indexing orchestration
+# ---------------------------------------------------------------------------
+
+def _should_index(path: Path) -> bool:
+    for part in path.parts:
+        if part in SKIP_DIRS:
+            return False
+    return path.suffix.lower() in SOURCE_EXTENSIONS
+
+
+def _discover_files(project_path: str) -> list[Path]:
+    root = Path(project_path)
+    return [p for p in root.rglob("*") if p.is_file() and _should_index(p)]
+
+
+async def index_project(project_path: str) -> int:
+    """Index all source files under project_path. Returns total chunk count."""
+    init_db()
+    conn = get_db()
+    pid = get_or_create_project(conn, project_path)
+    conn.execute(
+        "UPDATE projects SET indexed_at = ? WHERE id = ?",
+        (datetime.now(timezone.utc).isoformat(), pid),
+    )
+    conn.commit()
+    conn.close()
+
+    files = _discover_files(project_path)
+    total = 0
+    for file_path in files:
+        total += await index_file(project_path, file_path)
+    return total
+
+
+async def index_file(project_path: str, file_path: Path) -> int:
+    """Chunk, embed, and upsert a single file. Returns chunk count."""
+    chunks = chunk_file(file_path)
+    if not chunks:
+        return 0
+
+    collection = get_collection("code", project_path)
+
+    try:
+        rel = str(file_path.relative_to(project_path))
+    except ValueError:
+        rel = str(file_path)
+
+    # Remove stale chunks for this file
+    try:
+        existing = collection.get(where={"file": rel})
+        if existing["ids"]:
+            collection.delete(ids=existing["ids"])
+    except Exception:
+        pass
+
+    ids, embeddings, documents, metadatas = [], [], [], []
+    for chunk in chunks:
+        chunk_id = f"{rel}::{chunk['start_line']}"
+        vec = await embed(chunk["content"])
+        ids.append(chunk_id)
+        embeddings.append(vec)
+        documents.append(chunk["content"])
+        metadatas.append({
+            "file": rel,
+            "start_line": chunk["start_line"],
+            "end_line": chunk["end_line"],
+        })
+
+    collection.upsert(
+        ids=ids,
+        embeddings=embeddings,
+        documents=documents,
+        metadatas=metadatas,
+    )
+    return len(chunks)
+
+
+def clear_project_index(project_path: str) -> None:
+    """Delete all indexed chunks for a project from ChromaDB."""
+    collection = get_collection("code", project_path)
+    all_ids = collection.get()["ids"]
+    if all_ids:
+        collection.delete(ids=all_ids)
