@@ -45,3 +45,41 @@ async def test_query_code_empty_index(tmp_data_dir):
         # embed should NOT be called if collection is empty
         results = await lc.query_code("anything", "/empty/project", n_results=5)
     assert results == []
+
+
+@pytest.mark.asyncio
+async def test_save_and_query_note(tmp_data_dir):
+    import chroma_client
+    import layers.notes as ln
+    importlib.reload(chroma_client)
+    importlib.reload(ln)
+    from db import init_db
+    init_db()
+
+    with respx.mock:
+        respx.post("http://localhost:11434/api/embeddings").mock(
+            return_value=httpx.Response(200, json={"embedding": [0.8] * 768})
+        )
+        note_id = await ln.save_note("Auth uses JWT, secrets in .env", "/my/proj")
+        results = await ln.query_notes("authentication", "/my/proj", n_results=1)
+
+    assert isinstance(note_id, int)
+    assert len(results) == 1
+    assert "JWT" in results[0]["content"]
+    assert results[0]["name"].startswith("Note #")
+    assert "saved" in results[0]["description"]
+
+
+@pytest.mark.asyncio
+async def test_query_notes_empty(tmp_data_dir):
+    import chroma_client
+    import layers.notes as ln
+    importlib.reload(chroma_client)
+    importlib.reload(ln)
+    from db import init_db
+    init_db()
+
+    with respx.mock:
+        # embed should NOT be called for empty collection
+        results = await ln.query_notes("nothing here", "/empty/proj")
+    assert results == []
