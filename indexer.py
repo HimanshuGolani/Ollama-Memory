@@ -172,7 +172,11 @@ async def index_project(project_path: str) -> int:
     files = _discover_files(project_path)
     total = 0
     for file_path in files:
-        total += await index_file(project_path, file_path)
+        try:
+            total += await index_file(project_path, file_path)
+        except Exception as exc:
+            import logging
+            logging.warning("Failed to index %s: %s", file_path, exc)
     return total
 
 
@@ -194,8 +198,9 @@ async def index_file(project_path: str, file_path: Path) -> int:
         existing = collection.get(where={"file": rel})
         if existing["ids"]:
             collection.delete(ids=existing["ids"])
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.warning("Failed to clean stale chunks for %s: %s", rel, exc)
 
     ids, embeddings, documents, metadatas = [], [], [], []
     for chunk in chunks:

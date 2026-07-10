@@ -10,4 +10,7 @@ async def embed(text: str) -> list[float]:
             timeout=30.0,
         )
         resp.raise_for_status()
-        return resp.json()["embedding"]
+        vec = resp.json().get("embedding")
+        if not vec:
+            raise ValueError(f"Ollama returned no embedding for model '{settings.embed_model}'")
+        return vec

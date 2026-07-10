@@ -9,6 +9,7 @@ def get_db() -> sqlite3.Connection:
     Sets row_factory = sqlite3.Row and PRAGMA foreign_keys = ON
     Returns open connection (caller is responsible for closing)
     """
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
     db_path = settings.data_dir / "memory.db"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row

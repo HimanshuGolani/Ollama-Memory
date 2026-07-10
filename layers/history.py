@@ -56,12 +56,15 @@ async def _summarize_batch(project_id: int, project_path: str, queries: list[str
             resp.raise_for_status()
             summary = resp.json().get("response", "")
     except Exception:
-        summary = "; ".join(queries[:3])
+        return  # Don't store degraded fallback data in history
 
     if not summary.strip():
         return
 
-    vec = await embed(summary)
+    try:
+        vec = await embed(summary)
+    except Exception:
+        return
     chroma_id = str(uuid.uuid4())
     collection = get_collection("history", project_path)
     collection.upsert(

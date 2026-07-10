@@ -28,8 +28,9 @@ class _IndexHandler(FileSystemEventHandler):
 
     def _flush(self, path: str):
         time.sleep(self._debounce + 0.1)
-        due = self._pending.pop(path, 0)
-        if time.monotonic() < due:
+        due = self._pending.pop(path, None)
+        # None means another thread already popped this key and will handle it
+        if due is None or time.monotonic() < due:
             return
         from indexer import index_file
         asyncio.run_coroutine_threadsafe(
@@ -39,8 +40,8 @@ class _IndexHandler(FileSystemEventHandler):
 
 
 def start_watcher(project_path: str) -> Observer:
-    """Start a watchdog Observer on project_path. Returns the started Observer."""
-    loop = asyncio.get_event_loop()
+    """Start a watchdog Observer on project_path. Must be called from async context. Returns the started Observer."""
+    loop = asyncio.get_running_loop()
     handler = _IndexHandler(project_path, loop)
     observer = Observer()
     observer.schedule(handler, project_path, recursive=True)

@@ -19,14 +19,7 @@ async def save_note(note: str, project_path: str) -> int:
     vec = await embed(note)
     chroma_id = str(uuid.uuid4())
 
-    collection = get_collection("notes", project_path)
-    collection.upsert(
-        ids=[chroma_id],
-        embeddings=[vec],
-        documents=[note],
-        metadatas=[{"project": project_path}],
-    )
-
+    # SQLite first — if it fails, Chroma is never touched
     conn = get_db()
     pid = get_or_create_project(conn, project_path)
     cursor = conn.execute(
@@ -36,6 +29,23 @@ async def save_note(note: str, project_path: str) -> int:
     conn.commit()
     note_id = cursor.lastrowid
     conn.close()
+
+    # Chroma second — compensate by deleting the SQLite row if this fails
+    try:
+        collection = get_collection("notes", project_path)
+        collection.upsert(
+            ids=[chroma_id],
+            embeddings=[vec],
+            documents=[note],
+            metadatas=[{"project": project_path}],
+        )
+    except Exception:
+        conn = get_db()
+        conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        conn.commit()
+        conn.close()
+        raise
+
     return note_id
 
 
