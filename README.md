@@ -1,127 +1,194 @@
-# Ollama Brain
+<div align="center">
 
-Persistent memory for your local Ollama models. Gives AI assistants in VS Code and IntelliJ IDEA real knowledge of your codebase — across every session.
+# 🧠 Ollama Brain
+
+### Persistent memory for your local AI models
+
+Give your Ollama-powered coding assistant a **real, lasting understanding** of your codebase — across every session, across every IDE.
+
+<br/>
+
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-1.5.9-FF6B6B?style=for-the-badge)](https://trychroma.com)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20AI-black?style=for-the-badge)](https://ollama.ai)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-28%20Passing-brightgreen?style=for-the-badge)](tests/)
+
+<br/>
+
+**Works with** &nbsp;
+![VS Code](https://img.shields.io/badge/VS_Code-007ACC?style=flat-square&logo=visual-studio-code&logoColor=white)
+![IntelliJ IDEA](https://img.shields.io/badge/IntelliJ_IDEA-000000?style=flat-square&logo=intellij-idea&logoColor=white)
+via [Continue.dev](https://continue.dev)
+
+</div>
 
 ---
 
-## The Problem
+## 😤 The Problem
 
-Ollama models forget everything when you close the chat. Ask about your auth flow today, come back tomorrow, and the model has no idea what you're talking about. It hallucinates file names, contradicts itself, and can't follow your architecture.
+Every time you close your chat with an Ollama model, it **forgets everything**.
 
-**Ollama Brain** fixes this by running a lightweight local server that indexes your code, stores your notes, and remembers your past questions — then surfaces all of it automatically through [Continue.dev](https://continue.dev) every time you ask a question.
+```
+You:  "How does authentication work in this project?"
+AI:   "I don't have context about your project. Could you share the relevant files?"
 
----
+You:  "We discussed this yesterday — JWT tokens, stored in .env"
+AI:   "I apologize, I don't have memory of previous conversations..."
+```
 
-## How It Works
-
-Three memory layers, all local:
-
-| Layer | What it stores | How it's used |
-|---|---|---|
-| **Code Index** | Every function, class, and file chunk in your project | Semantically searched on every query — relevant code is injected into the prompt |
-| **Notes** | Architecture decisions, gotchas, important facts you want the model to remember | Persisted forever, retrieved by similarity |
-| **History** | Auto-summarized records of past Q&A sessions | Gives the model context about what has already been discussed |
-
-All data is stored on your machine (`~/.ollama-brain/`). Nothing leaves localhost.
+The AI hallucinates file names, contradicts past answers, and can't follow your architecture. You waste time re-explaining the same things over and over.
 
 ---
 
-## Prerequisites
+## ✅ The Solution
 
-- **Python 3.11+**
-- **Ollama** running locally (`http://localhost:11434`)
-- The following Ollama models pulled:
-  ```
+**Ollama Brain** runs a tiny local server that:
+
+1. **Indexes your entire codebase** into a searchable vector database
+2. **Remembers notes** you write about architecture, decisions, and gotchas
+3. **Summarizes your past Q&A** so context carries forward automatically
+
+Every query you make through Continue.dev **automatically pulls the most relevant context** from all three layers and injects it into the prompt — without you doing anything extra.
+
+```
+You:  "@code @notes How does authentication work?"
+
+AI:   "Based on the code in auth/jwt_handler.py (lines 12–45) and your
+       note 'Auth uses JWT, secrets in .env', here's how it works..."
+```
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph IDE["🖥️ Your IDE (VS Code / IntelliJ)"]
+        CD["Continue.dev"]
+    end
+
+    subgraph OB["🧠 Ollama Brain Server (localhost:11435)"]
+        direction TB
+        API["FastAPI Routes"]
+        CODE["📁 Code Layer\nSemantic search\nover indexed chunks"]
+        NOTES["📝 Notes Layer\nSave & search\ncurated notes"]
+        HIST["💬 History Layer\nAuto-summarized\npast Q&A"]
+        API --> CODE
+        API --> NOTES
+        API --> HIST
+    end
+
+    subgraph STORAGE["💾 Local Storage (~/.ollama-brain)"]
+        CHROMA["ChromaDB\nVector Store"]
+        SQLITE["SQLite\nMetadata"]
+    end
+
+    subgraph OLLAMA["🦙 Ollama (localhost:11434)"]
+        EMBED["nomic-embed-text\n(embeddings)"]
+        CHAT["llama3.2\n(summarization)"]
+    end
+
+    CD -- "POST /context/code\nPOST /context/notes\nPOST /context/history" --> API
+    CODE & NOTES & HIST <--> CHROMA
+    CODE & NOTES & HIST <--> SQLITE
+    CODE & NOTES & HIST -- "embed()" --> EMBED
+    HIST -- "summarize()" --> CHAT
+```
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+
+Before you begin, make sure you have:
+
+- [ ] **Python 3.11+** — `python --version`
+- [ ] **Ollama running** — `ollama serve`
+- [ ] **Required models pulled:**
+  ```bash
   ollama pull nomic-embed-text
   ollama pull llama3.2
   ```
-- **Continue.dev** extension installed in VS Code or IntelliJ IDEA
+- [ ] **Continue.dev** installed in your IDE
 
 ---
 
-## Installation
+## 📦 Installation
 
-### 1. Clone the repo
+### Option A — Windows (One Click)
+
+Clone the repo and double-click **`start.bat`**. It creates the venv, installs dependencies, and starts the server automatically.
+
+```
+git clone https://github.com/HimanshuGolani/Ollama-Memory.git
+cd Ollama-Memory
+start.bat
+```
+
+### Option B — Manual (All Platforms)
 
 ```bash
 git clone https://github.com/HimanshuGolani/Ollama-Memory.git
-cd "Ollama-Memory"
-```
+cd Ollama-Memory
 
-### 2. Create a virtual environment and install dependencies
-
-**Windows (recommended — just double-click):**
-```
-start.bat
-```
-The batch file creates the venv, installs everything, and starts the server automatically.
-
-**Manual (Windows / macOS / Linux):**
-```bash
+# Create virtual environment
 python -m venv .venv
 
-# Windows
-.venv\Scripts\activate
+# Activate it
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate      # macOS / Linux
 
-# macOS / Linux
-source .venv/bin/activate
-
+# Install dependencies
 pip install -r requirements.txt
-```
 
----
-
-## Starting the Server
-
-```bash
+# Start the server
 python cli.py serve
 ```
 
-Or on Windows, just double-click **`start.bat`**.
+> ✅ You should see: `INFO: Uvicorn running on http://0.0.0.0:11435`
 
-The server starts on port **11435** by default. You should see:
+---
 
-```
-Starting Ollama Brain on port 11435
-INFO:     Uvicorn running on http://0.0.0.0:11435
+## 🚀 Setup Guide (5 Steps)
+
+### Step 1 — Start the server
+
+```bash
+python cli.py serve
 ```
 
 Keep this terminal open while you work.
 
 ---
 
-## Step-by-Step Setup Guide
-
-### Step 1 — Index your project
-
-Point Ollama Brain at your codebase. It will scan every source file and build a searchable vector index:
+### Step 2 — Index your project
 
 ```bash
 python cli.py index "C:/path/to/your/project"
 ```
 
-Example:
-```bash
-python cli.py index "C:/Users/Alice/projects/my-api"
 ```
-
-Output:
-```
-Indexing C:/Users/Alice/projects/my-api...
+Indexing C:/path/to/your/project...
 Done. Indexed 847 chunks.
 ```
 
-Large projects (1000+ files) take a minute or two on first run. After that, the file watcher automatically re-indexes any file you save.
+> 💡 Large projects take 1–2 minutes on first run. After that, files are re-indexed automatically whenever you save them.
 
-### Step 2 — Configure Continue.dev
+---
 
-Run the configure command to get the exact snippet for your project:
+### Step 3 — Get your Continue.dev config snippet
 
 ```bash
 python cli.py configure "C:/path/to/your/project"
 ```
 
-This prints a JSON block like:
+This prints a ready-to-paste JSON block:
+
+<details>
+<summary>📋 Click to see example output</summary>
 
 ```json
 {
@@ -167,174 +234,244 @@ This prints a JSON block like:
 }
 ```
 
-### Step 3 — Paste into Continue.dev config
-
-Open `~/.continue/config.json` and merge the `contextProviders` array and `slashCommands` array into the file.
-
-**VS Code:** Press `Ctrl+Shift+P` → "Continue: Open config.json"
-
-**IntelliJ IDEA:** Open the Continue sidebar → gear icon → "Open config.json"
-
-After saving the config, the memory layers appear in Continue's `@` context menu.
-
-### Step 4 — Use it
-
-In Continue's chat input, type `@` to see your memory providers:
-
-```
-@code    — search indexed code chunks
-@notes   — search your saved notes
-@history — search past Q&A summaries
-```
-
-Example prompt:
-```
-@code @notes How does authentication work in this project?
-```
-
-Continue fetches the most relevant chunks and notes from Ollama Brain and injects them into the prompt automatically.
+</details>
 
 ---
 
-## Saving Notes
+### Step 4 — Paste into Continue.dev config
 
-Tell the model things it should always remember about your project:
+Open `~/.continue/config.json` and merge the output into it.
 
+| IDE | How to open config |
+|---|---|
+| **VS Code** | `Ctrl+Shift+P` → `Continue: Open config.json` |
+| **IntelliJ IDEA** | Continue sidebar → ⚙️ gear icon → `Open config.json` |
+
+Merge the `contextProviders` and `slashCommands` arrays into the existing file, then save.
+
+---
+
+### Step 5 — Use it in chat
+
+In Continue's chat input, type `@` to see your memory layers:
+
+| Provider | What it searches |
+|---|---|
+| `@code` | Indexed source files — finds relevant functions and classes |
+| `@notes` | Your saved notes — architecture decisions, gotchas, facts |
+| `@history` | Summarized past Q&A — what you've already discussed |
+
+**Example:**
+```
+@code @notes How does the payment flow work?
+```
+
+Continue fetches the most semantically relevant content from all three layers and injects it into the prompt automatically.
+
+---
+
+## 📝 Saving Notes
+
+Tell Ollama Brain things it should always remember:
+
+**From the terminal:**
 ```bash
-python cli.py remember "Auth uses JWT. Secrets are stored in .env. Never hardcode tokens." --project "C:/path/to/your/project"
+python cli.py remember "Auth uses JWT. Secrets stored in .env. Never hardcode tokens." \
+  --project "C:/path/to/your/project"
 ```
 
-Or use the `/remember` slash command inside Continue's chat:
-
+**From Continue.dev chat (using the slash command):**
 ```
-/remember The database is Postgres 15, running on port 5432. The ORM is SQLAlchemy.
+/remember The database is Postgres 15, running on port 5432. ORM is SQLAlchemy.
 ```
 
 Notes are stored permanently and retrieved by semantic similarity on every query.
 
 ---
 
-## CLI Reference
+## 🖥️ CLI Reference
 
-| Command | Description |
-|---|---|
-| `python cli.py serve` | Start the memory server (port 11435) |
-| `python cli.py index <path>` | Index a project's source files |
-| `python cli.py remember "<note>" --project <path>` | Save a note about a project |
-| `python cli.py status` | List all indexed projects |
-| `python cli.py configure <path>` | Print the Continue.dev config snippet for a project |
+```
+python cli.py --help
+```
+
+| Command | Example | Description |
+|---|---|---|
+| `serve` | `python cli.py serve` | Start the memory server |
+| `index` | `python cli.py index C:/my/project` | Index a project's source files |
+| `remember` | `python cli.py remember "note" --project C:/my/project` | Save a note |
+| `status` | `python cli.py status` | List all indexed projects |
+| `configure` | `python cli.py configure C:/my/project` | Print Continue.dev config snippet |
 
 ---
 
-## Environment Variables
+## ⚙️ Configuration
 
-All settings have sensible defaults. Override with a `.env` file or shell environment:
+All settings have sensible defaults. Override with a `.env` file in the project root or shell environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_BRAIN_PORT` | `11435` | Port for the Ollama Brain server |
-| `OLLAMA_BRAIN_DATA_DIR` | `~/.ollama-brain` | Where to store the database and vector index |
-| `OLLAMA_BRAIN_EMBED_MODEL` | `nomic-embed-text` | Ollama model used for embeddings |
-| `OLLAMA_BRAIN_CHAT_MODEL` | `llama3.2` | Ollama model used to summarize history |
+| `OLLAMA_BRAIN_PORT` | `11435` | Port for Ollama Brain |
+| `OLLAMA_BRAIN_DATA_DIR` | `~/.ollama-brain` | Storage location |
+| `OLLAMA_BRAIN_EMBED_MODEL` | `nomic-embed-text` | Embedding model |
+| `OLLAMA_BRAIN_CHAT_MODEL` | `llama3.2` | Summarization model |
 
-Example `.env`:
+<details>
+<summary>📄 Example .env file</summary>
+
 ```env
-OLLAMA_BRAIN_PORT=12000
+OLLAMA_URL=http://localhost:11434
+OLLAMA_BRAIN_PORT=11435
+OLLAMA_BRAIN_DATA_DIR=C:/Users/YourName/.ollama-brain
 OLLAMA_BRAIN_EMBED_MODEL=nomic-embed-text
-OLLAMA_BRAIN_CHAT_MODEL=llama3.1
+OLLAMA_BRAIN_CHAT_MODEL=llama3.2
+```
+
+</details>
+
+---
+
+## 📁 Supported File Types
+
+<details>
+<summary>View all 22 supported extensions</summary>
+
+| Category | Extensions |
+|---|---|
+| Python | `.py` |
+| JavaScript / TypeScript | `.js` `.ts` `.jsx` `.tsx` |
+| JVM | `.java` `.kt` |
+| Systems | `.go` `.rs` `.c` `.cpp` `.h` `.cs` `.swift` |
+| Scripting | `.rb` `.php` |
+| Config / Docs | `.md` `.txt` `.yaml` `.yml` `.json` `.toml` |
+
+**Automatically skipped directories:**
+`node_modules` · `__pycache__` · `.git` · `.venv` · `venv` · `dist` · `build` · `.idea` · `.vscode` · `target` · `bin` · `obj`
+
+</details>
+
+---
+
+## 🔄 Auto Re-Index (File Watcher)
+
+Once a project is indexed, Ollama Brain watches for file saves and **automatically re-indexes changed files within 2 seconds**. No need to re-run `index` after each edit.
+
+```
+[File saved: src/auth/jwt_handler.py]
+  → Detected change
+  → Re-indexing 3 chunks...
+  → Done ✓
 ```
 
 ---
 
-## Supported File Types
-
-Ollama Brain indexes source files from these extensions:
-
-`.py` `.js` `.ts` `.jsx` `.tsx` `.java` `.kt` `.go` `.cs` `.cpp` `.c` `.h` `.rs` `.rb` `.php` `.swift` `.md` `.txt` `.yaml` `.yml` `.json` `.toml`
-
-The following directories are automatically skipped:
-
-`node_modules` `__pycache__` `.git` `.venv` `venv` `dist` `build` `.idea` `.vscode` `target` `bin` `obj`
-
----
-
-## File Watcher (Auto Re-index)
-
-Once a project is indexed, Ollama Brain watches for file saves and automatically re-indexes changed files within 2 seconds. No need to re-run `index` manually during a coding session.
-
-Watching starts automatically for any previously-indexed projects when the server starts.
-
----
-
-## Checking Status
-
-```bash
-python cli.py status
-```
-
-Shows a table of all indexed projects and when they were last indexed:
-
-```
-┌─────────────────────────────────┬──────────┬──────────────────────────┐
-│ Project                         │ Name     │ Last Indexed             │
-├─────────────────────────────────┼──────────┼──────────────────────────┤
-│ C:/Users/Alice/projects/my-api  │ my-api   │ 2026-07-11T10:32:00+00:00│
-└─────────────────────────────────┴──────────┴──────────────────────────┘
-```
-
----
-
-## Troubleshooting
-
-**"unable to open database file" on first start**
-
-Make sure `~/.ollama-brain` is writable. The server creates it automatically, but if the drive is full or permissions are wrong, it will fail.
-
-**Embeddings are slow**
-
-`nomic-embed-text` needs to be pulled: `ollama pull nomic-embed-text`. First run is slow while the model loads into memory; subsequent calls are fast.
-
-**Continue.dev doesn't show `@code` / `@notes` / `@history`**
-
-- Confirm the server is running (`python cli.py serve`)
-- Check that the URLs in config.json use the correct project path (no trailing slash)
-- Restart VS Code / IntelliJ after editing config.json
-
-**History summarization isn't working**
-
-History is summarized automatically every 10 queries using `llama3.2`. If that model isn't pulled (`ollama pull llama3.2`), the batch is silently skipped (queries are still recorded, just not summarized yet).
-
----
-
-## Project Structure
+## 🗂️ Project Structure
 
 ```
 Ollama-Memory/
-├── cli.py              # CLI entry point (serve, index, remember, status, configure)
-├── main.py             # FastAPI application
-├── config.py           # Settings (env vars, defaults)
-├── db.py               # SQLite layer
-├── embedder.py         # Ollama embedding wrapper
-├── chroma_client.py    # ChromaDB client wrapper
-├── indexer.py          # File chunker + project indexer
-├── watcher.py          # File system watcher (auto re-index on save)
-├── layers/
-│   ├── code.py         # Semantic code search
-│   ├── notes.py        # Save + search notes
-│   └── history.py      # Record queries + search summaries
-├── routes/
-│   ├── context.py      # POST /context/code|notes|history
-│   ├── index_routes.py # POST|DELETE /index
-│   ├── remember.py     # POST /remember
-│   └── status.py       # GET /status
-├── tests/              # 28 automated tests
-├── requirements.txt
-└── start.bat           # Windows one-click startup
+├── 📄 cli.py              — CLI entry point (serve, index, remember, status, configure)
+├── 📄 main.py             — FastAPI application + lifespan
+├── 📄 config.py           — Settings via env vars
+├── 📄 db.py               — SQLite layer (projects, notes, history)
+├── 📄 embedder.py         — Ollama embedding wrapper
+├── 📄 chroma_client.py    — ChromaDB client wrapper
+├── 📄 indexer.py          — Language-aware file chunker + project indexer
+├── 📄 watcher.py          — File system watcher (auto re-index on save)
+├── 📁 layers/
+│   ├── 📄 code.py         — Semantic code search
+│   ├── 📄 notes.py        — Save + search notes
+│   └── 📄 history.py      — Record queries + search summaries
+├── 📁 routes/
+│   ├── 📄 context.py      — POST /context/code|notes|history
+│   ├── 📄 index_routes.py — POST|DELETE /index
+│   ├── 📄 remember.py     — POST /remember
+│   └── 📄 status.py       — GET /status
+├── 📁 tests/              — 28 automated tests
+├── 📄 requirements.txt
+└── 📄 start.bat           — Windows one-click startup
 ```
 
 ---
 
-## License
+## 🐛 Troubleshooting
 
-MIT
+<details>
+<summary>❌ Server fails to start — "unable to open database file"</summary>
+
+The data directory couldn't be created. Check that `~/.ollama-brain` (or your custom `OLLAMA_BRAIN_DATA_DIR`) is writable:
+
+```bash
+mkdir -p ~/.ollama-brain
+```
+
+</details>
+
+<details>
+<summary>🐢 Indexing is very slow</summary>
+
+Make sure `nomic-embed-text` is pulled and loaded:
+
+```bash
+ollama pull nomic-embed-text
+# Test it:
+ollama run nomic-embed-text "hello"
+```
+
+The first embedding call loads the model into memory — subsequent calls are fast.
+
+</details>
+
+<details>
+<summary>❓ @code / @notes / @history don't appear in Continue.dev</summary>
+
+1. Confirm the server is running: open `http://localhost:11435/status` in a browser — you should see `{"status":"ok",...}`
+2. Check the project path in `config.json` exactly matches the path you passed to `cli.py index` (no trailing slash)
+3. Restart VS Code / IntelliJ after editing `config.json`
+
+</details>
+
+<details>
+<summary>💬 History summarization isn't happening</summary>
+
+Summaries are generated every **10 queries** using `llama3.2`. If the model isn't pulled, the batch is silently skipped (queries are still recorded):
+
+```bash
+ollama pull llama3.2
+```
+
+</details>
+
+---
+
+## 🤝 How the Memory Layers Work Together
+
+```
+Your question: "How does auth work?"
+        │
+        ├─► @code    searches vector index → returns jwt_handler.py:12-45
+        │
+        ├─► @notes   searches saved notes  → returns "Auth uses JWT, .env has secrets"
+        │
+        └─► @history searches past summaries → returns "Previously discussed: JWT flow, token refresh"
+                                                         │
+                                              All injected into prompt
+                                                         │
+                                              AI gives accurate, context-aware answer ✓
+```
+
+---
+
+## 📜 License
+
+MIT — free to use, modify, and distribute.
+
+---
+
+<div align="center">
+
+Made to keep your AI assistant from forgetting everything between sessions.
+
+**⭐ Star this repo if it saves you time!**
+
+</div>
